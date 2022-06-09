@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "wbfs.h"
 
 // Error loggers based on how many arguments get parsed to the format string
@@ -27,7 +28,19 @@ int main(int argc, char* argv[])
     WbfsFileHeader wbfs_file_header;
     wbfs_enum result = wbfs_file_header_parse(&wbfs_handle, &wbfs_file_header, fp);
     if (result != e_wbfs_success) {
-        fprintf(stderr, "Failed when parsing the WBFS file header with the following reason :\n %s",
-                wbfs_helper_enum_lookup(result));
+        ERROR_EXIT_1("Failed when parsing the WBFS file header with the following reason",
+                     wbfs_helper_enum_lookup(result));
+    }
+
+    // Allocate enough space for the disc table and then read in the disc table
+    wbfs_handle.file_header->disc_table = malloc(wbfs_helper_disc_table_size(&wbfs_handle));
+    if (!wbfs_handle.file_header->disc_table) {
+        ERROR_EXIT_0("Failed to allocate space for disc table");
+    }
+    wbfs_file_disc_table_parse(&wbfs_handle);
+
+    // Now that we've read the disc table, loop through all of the discs and parse them
+    for (uint8_t i = 0; i < wbfs_handle.wii_disc_count; i++) {
+        printf(" * Opening Disc %d\n", i);
     }
 }

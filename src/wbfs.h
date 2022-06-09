@@ -35,18 +35,31 @@ typedef struct WbfsFileHeader {
     uint8_t* disc_table;  // Lists all the Wii discs inside the partition, can store up to hd_sector_size - 12
 } WbfsFileHeader;
 
+/**
+ * Define the Wbfs struct, this keeps track of all the information extracted from the header, such as tracking
+ * the file pointer and the constants that remain the same between discs
+ */
 typedef struct Wbfs {
     FILE* fp;                     // The underlying wbfs file
     WbfsFileHeader* file_header;  // Interpret the bytes of Wbfs header
 
     // Variables extracted from the binary file header
+    uint64_t wbfs_file_size;    // How large the WBFS file is in bytes
     uint64_t wbfs_sector_size;  // How large the WBFS sectors are
     uint64_t hd_sector_size;    // How large the host harddrive sectors are
+    uint8_t wii_disc_count;     // How many Wii disks are in the file
 
     // Repeate the WBFS magic at the end of the struct, this is how we'll ensure the struct we've recieved is
     // propperly allocated
     uint32_t valid;
 } Wbfs;
+
+/**
+ * Define the Wii disc struct. Although the wbfs contains multiple wii disc, we don't store an array of wii
+ * discs as it will be more memory efficient to parse one wii disc at a time and then make the disc hold a
+ * reference to the Wbfs. There are other reasons to do this, for example the wbfs address lookup changes
+ * based on the current disc being searched
+ */
 
 /*************************************************************************************************************
  * Enums for return codes
@@ -55,13 +68,14 @@ typedef enum wbfs_enum {
     e_wbfs_success,
     e_wbfs_segfault,
     e_wbfs_magic_fail_wbfs,
-    e_wbfs_invalid_handle
+    e_wbfs_invalid_handle,
+    e_wbfs_invalid_disc_table,
 } wbfs_enum;
 /*************************************************************************************************************
  * Functions that do a large portion of the work. None of these functions should ever allocate memory, this is
  * left up to the user to do.
  *
- * Most of these functions should return a
+ * Most of these functions should return an enum specifying a sucess code
  *************************************************************************************************************/
 
 /**
@@ -75,6 +89,14 @@ typedef enum wbfs_enum {
  * @param fp File Pointer to the WBFS, has to be in RB mode
  */
 wbfs_enum wbfs_file_header_parse(Wbfs* wbfs_handle, WbfsFileHeader* wbfs_fh, FILE* fp);
+
+/**
+ * @brief Once the user has allocated space for the disc table to be read in, and the file pointer has been
+ * properly been read, this will read in the disc table
+ * @returns error code, 0 on success
+ * @param wbfs Pointer to the WBFS handle
+ */
+wbfs_enum wbfs_file_disc_table_parse(Wbfs* wbfs);
 
 /*************************************************************************************************************
  * Helper functions that don't have a return type, do something simple

@@ -23,9 +23,14 @@
  * it will also return out of the current function, this means we can return errors to the user while making
  * sure they don't euse the handle
  */
-#define WBFS_VALID(WBFS)                 \
-    if (!(WBFS)) return e_wbfs_segfault; \
-    if (!(WBFS)->valid != WBFS_MAGIC) return e_wbfs_invalid_handle;
+#define WBFS_VALID(WBFS)                                                \
+    {                                                                   \
+        if (!(WBFS)) return e_wbfs_segfault;                            \
+        if (!(WBFS)->fp) return e_wbfs_segfault;                        \
+        if (!(WBFS)->file_header) return e_wbfs_segfault;               \
+        if (!(WBFS)->valid == WBFS_MAGIC) return e_wbfs_invalid_handle; \
+    }
+
 #define WBFS_INVALIDATE(WBFS, ENUM)     \
     (WBFS)->valid = WBFS_MAGIC_REVERSE; \
     return (ENUM);
@@ -43,7 +48,7 @@ wbfs_enum wbfs_file_header_parse(Wbfs* wbfs_handle, WbfsFileHeader* wbfs_fh, FIL
 
     // Seek to the begining of the file and read in all the data that isn't the disc table
     fseek(fp, 0, SEEK_SET);
-    fread(wbfs_fh, 1, sizeof(WbfsFileHeader) - sizeof(uint8_t*), fp);
+    fread(wbfs_fh, sizeof(WbfsFileHeader) - sizeof(uint8_t*), 1, fp);
 
     // This is the first time we encounter endianness as a problem, and we'll explain it here once. The file
     // format stores thing in big endian, which is most significant bytes first. However, most PCs are litle
@@ -54,9 +59,34 @@ wbfs_enum wbfs_file_header_parse(Wbfs* wbfs_handle, WbfsFileHeader* wbfs_fh, FIL
     wbfs_helper_reverse_endian_32(&wbfs_fh->hd_sector_count);
 
     // Check that the magic number matched
-    if (wbfs_fh->magic != WBFS_MAGIC) WBFS_INVALIDATE(wbfs_handle, e_wbfs_magic_fail_wbfs);
+    if (wbfs_fh->magic != WBFS_MAGIC) {
+        WBFS_INVALIDATE(wbfs_handle, e_wbfs_magic_fail_wbfs);
+    }
+
+    // Extract the sector sizes by raising 2 to the power of the sector size
+    wbfs_handle->hd_sector_size = 1ull << wbfs_fh->hd_sector_shift;
+    wbfs_handle->wbfs_sector_size = 1ull << wbfs_fh->wbfs_sector_shift;
+    wbfs_handle->wbfs_file_size = wbfs_fh->hd_sector_count * wbfs_handle->hd_sector_size;
 
     // Got to the end succssfully, mark the wbfs as sucessful
     wbfs_handle->valid = WBFS_MAGIC;
+    return e_wbfs_success;
+}
+
+wbfs_enum wbfs_file_disc_table_parse(Wbfs* wbfs)
+{
+    WBFS_VALID(wbfs);
+    if (!wbfs->file_header->disc_table) return e_wbfs_segfault;
+
+    // Seek to the start of the file, and then after those 12 bytes that make up the rest of the header
+    fseek(wbfs->fp, 12, SEEK_SET);
+    fread(wbfs->file_header->disc_table, 1, wbfs->hd_sector_size - 12, wbfs->fp);
+
+    // I only know how to pass one disc at a time, so in this case evaluate that the first byte of the disc
+    // table is 0x1
+    if (wbfs->file_header->disc_table[0] != 0x1) {
+        return e_wbfs_invalid_disc_table;
+    }
+    wbfs->wii_disc_count = 1;
     return e_wbfs_success;
 }
