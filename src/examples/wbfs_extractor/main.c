@@ -44,13 +44,21 @@ int main(int argc, char* argv[])
     for (uint8_t i = 0; i < wbfs_handle.wii_disc_count; i++) {
         printf(" * Opening Disc %d\n", i);
 
+        // Initalise the disc by finding out where it starts
         WiiDisc disc;
         memset(&disc, 0, sizeof(WiiDisc));
+        wbfs_disc_get_offset(&disc, &wbfs_handle, i);
 
-        // Allocate space for the sector look up table
-        disc.wbfs_sector_lookup = malloc(wbfs_sector_table_size(&wbfs_handle));
+        // Allocate space for the sector look up table for this disc
+        disc.wbfs_sector_lookup = malloc(wbfs_helper_sector_table_size(&wbfs_handle));
         if (!disc.wbfs_sector_lookup) {
             ERROR_EXIT_0("Failed to allocate space for this disc's sector lookup table\n");
         }
+        wbfs_disc_parse_sector_table(&disc);
+
+        uint8_t title[16];
+        wbfs_disc_read_buffer(&disc, &title, 0xF800000 + 0x1DC, 16);
+
+        printf("temp");
     }
 }

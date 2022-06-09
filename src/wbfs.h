@@ -64,6 +64,7 @@ typedef struct Wbfs {
 typedef struct WiiDisc {
     Wbfs* wbfs;                    // Pointer to the parent wbfs container
     uint16_t* wbfs_sector_lookup;  // Wbfs sectors aren't guarenteed to be in the correct order
+    uint64_t wbfs_offset;          // The offset into the wbfs file that this
 } WiiDisc;
 
 /*************************************************************************************************************
@@ -103,6 +104,24 @@ wbfs_enum wbfs_file_header_parse(Wbfs* wbfs_handle, WbfsFileHeader* wbfs_fh, FIL
  */
 wbfs_enum wbfs_file_disc_table_parse(Wbfs* wbfs);
 
+/**
+ * @brief Once the disc table has been read, users can find the offset into the wbfs file that the disc starts
+ * at. This is usally the first call made to a Wii disc structure, so fill in the inital set up as well
+ * @returns error code, 0 on success
+ * @param disc Pointer to the Wii Disc to init
+ * @param wbfs Pointer to the WBFS handle
+ * @param index index into the disc table to evaluate
+ */
+wbfs_enum wbfs_disc_get_offset(WiiDisc* disc, Wbfs* wbfs, uint8_t index);
+
+/**
+ * @brief Once space has been allocated for the disc table, users can then read in the sector look up table at
+ * the top of the wii disc info
+ * @returns error code, 0 on success
+ * @param pointer to the wii disc to be looked up
+ */
+wbfs_enum wbfs_disc_parse_sector_table(WiiDisc* disc);
+
 /*************************************************************************************************************
  * Helper functions that don't have a return type, do something simple
  *************************************************************************************************************/
@@ -121,7 +140,10 @@ void wbfs_helper_reverse_endian_32(uint32_t* d);
  */
 size_t wbfs_helper_disc_table_size(Wbfs* wbfs);
 
-size_t wbfs_sector_table_size(Wbfs* wbfs);
+/**
+ * brief Fetches the size in bytes of the
+ */
+size_t wbfs_helper_sector_table_size(Wbfs* wbfs);
 
 const char* wbfs_helper_enum_lookup(wbfs_enum e);
 #endif  // !__WFBS_H__

@@ -95,3 +95,49 @@ wbfs_enum wbfs_file_disc_table_parse(Wbfs* wbfs)
     wbfs->wii_disc_count = 1;
     return e_wbfs_success;
 }
+
+/*
+ * Wii Disc Section
+ */
+
+#define DISC_VALID(DISC)                                                \
+    {                                                                   \
+        if (!(DISC)) return e_wbfs_segfault;                            \
+        if ((DISC)->wbfs_offset == 0) return e_wbfs_invalid_disc_table; \
+        if (!(DISC)->wbfs) return e_wbfs_segfault;                      \
+        WBFS_VALID((DISC)->wbfs);                                       \
+    }
+
+wbfs_enum wbfs_disc_get_offset(WiiDisc* disc, Wbfs* wbfs, uint8_t index)
+{
+    WBFS_VALID(wbfs);
+    if (!wbfs->file_header->disc_table || !disc) return e_wbfs_segfault;
+
+    // Set up wii disc including associating it to a wbfs struct owner
+    disc->wbfs = wbfs;
+
+    // look up offset sector in the wbfs file header
+    disc->wbfs_offset = wbfs->file_header->disc_table[index] * wbfs->hd_sector_size;
+    if (disc->wbfs_sector_lookup == 0) return e_wbfs_invalid_disc_table;
+
+    return e_wbfs_success;
+}
+
+wbfs_enum wbfs_disc_parse_sector_table(WiiDisc* disc)
+{
+    DISC_VALID(disc);
+
+    // The wii disc - wbfs header is located at the start of the offset
+    // There is then a partial copy of the wii disc info, but not the entire thing
+    // So seek to the offset plus the size of the partial header
+    fseek(disc->wbfs->fp, disc->wbfs_offset + 256, SEEK_SET);
+    fread(disc->wbfs_sector_lookup, sizeof(uint16_t), disc->wbfs->wbfs_sectors_per_disc, disc->wbfs->fp);
+
+    // For each element in the disc table we have to reverse the endianness since the type is larger than one
+    // byte
+    for (uint32_t i = 0; i < disc->wbfs->wbfs_sectors_per_disc; i++) {
+        wbfs_helper_reverse_endian_16(disc->wbfs_sector_lookup + i);
+    }
+
+    return e_wbfs_success;
+}

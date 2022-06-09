@@ -6,6 +6,8 @@ void wbfs_helper_reverse_endian_32(uint32_t* d)
          ((0xFF000000 & *d) >> 24);
 }
 
+void wbfs_helper_reverse_endian_16(uint16_t* d) { *d = ((0xFF00 & *d) >> 8) | ((0x00FF & *d) << 8); }
+
 size_t wbfs_helper_disc_table_size(Wbfs* wbfs)
 {
     // The wbfs file header takes up the first hard drive sector, every that isn't the disc table takes up 12
@@ -13,7 +15,7 @@ size_t wbfs_helper_disc_table_size(Wbfs* wbfs)
     return wbfs->hd_sector_size - 12;
 }
 
-size_t wbfs_sector_table_size(Wbfs* wbfs)
+size_t wbfs_helper_sector_table_size(Wbfs* wbfs)
 {
     // A block table uses 16 bits per sector to store each sectors location
     return wbfs->wbfs_sectors_per_disc * sizeof(uint16_t);
