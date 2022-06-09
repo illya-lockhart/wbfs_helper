@@ -259,6 +259,46 @@ So I tried to find the Disc Info Magic number again to see if there was another 
 
 So what's going wrong here? Initially I thought this meant that the data was offset by the wbfs sector size instead of the hard drive sector size, but that is not the case!  In fact, our first hint was that extra data. And it's the reason we can't strip the WBFS header and boot it in Dolphin, the WBFS sectors are not necessarily in the correct order! 
 
+So how do go from an address to look up in the disc, to an address in the wbfs file? Well immediately after the Wii disc data in the second hard drive sector, we have a sector table for that disc. Each element in the sector table is 16 bits large, and there is one element for each wbfs sector in the disc. So lets read it in, while remembering to reverse the endianness of each element.
+
+```c
+uint64_t wii_disc_size = WII_DISC_2_SECTOR_COUNT * WII_DISC_SECTOR_SIZE;
+
+// Fetch how many entries we'd need to read
+// Nifty trick to divide by a number and then round up
+uint64_t wbfs_sectors_per_disc = (wii_disc_size + wbfs_sector_size - 1)
+    / wbfs_sector_size;
+uint16_t *sector_lookup = malloc(wbfs_sectors_per_disc * sizeof(uint16_t));
+
+// seek to the sector table, which is located 256 bytes after the wii disc header; which starts at the second hard drive sector
+fseek(fp, hd_sector_size + 256, SEEK_SET);
+fread(sector_lookup, sizeof(uint16_t), wbfs_sectors_per_disc, fp);
+
+// Reverse the endianness of each element
+for(uint32_t i = 0; i < wbfs_sectors_per_disc; i++) {
+    reverse_endian_16(sector_lookup + i);
+}
+```
+
+Now when we look up an address for the Wii disc, we can divide the address by the `wbfs_sector_size` to get the sector index of that address. The sector index will then be used to read the correct entry in the sector table, which will tell us where in the wbfs file that sector actually starts. I'll illustrate this in an example below:
+
+```c
+address = 0x20; // Game title location in the disc
+table_index = address / wbfs_sector_size; // 0
+sector_index = sector_lookup[table_index]; // 1
+sector_address = wbfs_sector_size * sector_index; // 0x200000
+final_address = sector_address + address % wbfs_sector_size; // 0x200020
+
+// Hex dump this address
+hexdump -C -s0x2020 -n0x10 "./Wii Sports(EU).wbfs"
+// 00200020  |SPORTS PACK for |
+// 00200030  |REVOLUTION......|
+```
+
+And this is exactly the expected result! However we must be careful when crossing the boundary over to the next WBFS sector, as they are not in order. So we might be required to access the file multiple times in different locations to read one buffer if it crosses a sector boundary. And now lets continue with reading the rest of the Wii disc.
+
+
+
 ### Wii Disc Partition Information
 
 Once again we have to go another layer deep inside the partitions, as the Wii disc can contain a couple different partitions. For example a lot of games come with an extra partition to update the Wii's operating system, so that the system can be updated without an internet connection.
