@@ -67,6 +67,16 @@ typedef struct WiiDisc {
     uint64_t wbfs_offset;          // The offset into the wbfs file that this
 } WiiDisc;
 
+/**
+ * The Wii disc partition info starts at address 0x40000 local to the wii disc. This information tells us
+ * where to look for the start of each of the partition tables. I think in total there are four of these
+ * entries per disc
+ */
+typedef struct WiiDiscPartitionInfoEntry {
+    uint32_t partition_count;
+    uint32_t offset;
+} WiiDiscPartitionInfoEntry;
+
 /*************************************************************************************************************
  * Enums for return codes
  *************************************************************************************************************/

@@ -196,14 +196,14 @@ uint32_t wbfs_sectorsPerDisc =
 
 Now that we've read the WBFS header in it's entirely, lets take a peak at the next sectors that are coming up. This is where we'll find the Wii Disc information.
 
-The disc information is made up of 4 different parts:
+The disc information is made up of 4 different parts, starting from here the addresses will be local to the start of the Wii Disc:
 
 | Addresses | Name                  |
 | --------- | --------------------- |
-| ??        | Disc Info Header      |
-| ??        | Partition Information |
-| ??        | Region Settings       |
-| ??        | Disc Info Magic       |
+| 0x0000    | Disc Info Header      |
+| 0x40000   | Partition Information |
+| 0x4E000   | Region Settings       |
+| 0x4FFFC   | Disc Info Magic       |
 
 I'll get to each of these sections as they come up, as it's not immediately clear how large they are. [Dolphin's source code](https://github.com/dolphin-emu/dolphin/blob/ac267a29405ae768037a8774b84b805a4180d1af/Source/Core/DiscIO/WbfsBlob.cpp#L23) seems to suggest that this disc info is 256 bytes, while [Wii brew](https://wiibrew.org/wiki/Wii_disc) suggests just the header alone is 1024 bytes. This is a mystery that will be solved later on.
 
@@ -301,7 +301,7 @@ And this is exactly the expected result! However we must be careful when crossin
 
 ### Wii Disc Partition Information
 
-Once again we have to go another layer deep inside the partitions, as the Wii disc can contain a couple different partitions. For example a lot of games come with an extra partition to update the Wii's operating system, so that the system can be updated without an internet connection.
+Wii Discs can contain multiple partitions, for example a lot of games have an update partition to update the console's operating system; this way the OS can be updated for a new game without an internet connection. This means we'll have to go another layer deeper into the partitions.
 
 Thankfully Wii sports came out at the same time as the Wii, so we don't need to worry about that update partition. Let's have a go at reading the partition information, there are 4 entries in the partition information in the following form  
 
@@ -310,7 +310,7 @@ Thankfully Wii sports came out at the same time as the Wii, so we don't need to 
 | 0x40000 - 0x40003 | Total number of partitions on the Wii Disc                   |
 | 0x40004 - 0x40007 | Offset from the partition info to get the entry in the partition table |
 
-For some reason the partition count is repeated in every single one of the entries, and can be optional. Let's take a look at the code now!
+For some reason the partition count is repeated in every single one of the entries, and can be optional. Each of these entries tell us where to look for the actual partition table. To ensure we read in the correct place, I'm going to use a function called `wbfs_disc_read_buffer` - This function just reads from the disc in the correct place while ensuring to relookup sector locations when crossing into a new wbfs sector.
 
 ```c
 typedef struct WiiDiscPartitionInfoEntry {
@@ -319,9 +319,10 @@ typedef struct WiiDiscPartitionInfoEntry {
 } WiiDiscPartitionInfoEntry;
 WiiDiscPartitionInfoEntry info_entry;
 
-fseek(fp, wbfs_sectorSize + 0x40000, SEEK_SET);
-fread(&info_entry, sizeof(info_entry), 1, fp);
+wbfs_disc_read_buffer(&disc, &info_entry, 
+    0x40000, sizeof(WiiDiscPartitionInfoEntry));
 
+// Correct the endianness and also times by 4 for alignment
 wbfs_helper_reverse_endian_32(&info_entry.offset);
 wbfs_helper_reverse_endian_32(&info_entry.partitionCount);
 info_entry.offset = info_entry.offset << 2;
