@@ -76,6 +76,7 @@ typedef enum wbfs_enum {
     e_wbfs_magic_fail_wbfs,
     e_wbfs_invalid_handle,
     e_wbfs_invalid_disc_table,
+    e_wbfs_failed_file_read,
 } wbfs_enum;
 /*************************************************************************************************************
  * Functions that do a large portion of the work. None of these functions should ever allocate memory, this is
@@ -122,6 +123,17 @@ wbfs_enum wbfs_disc_get_offset(WiiDisc* disc, Wbfs* wbfs, uint8_t index);
  */
 wbfs_enum wbfs_disc_parse_sector_table(WiiDisc* disc);
 
+/**
+ * @brief Reads a buffer from the wii disc with the address being local to the start of the actual disc, as
+ * well as searching the different wbfs sectors across the boundries of the buffers
+ * @returns error code, 0 on success
+ * @param disc Pointer to the Wii disc to be read
+ * @param data buffer allocated by the user to store the read contents
+ * @param address The starting address to be read local to the start of the Wii disc
+ * @param size The amount of bytes to read from the offset
+ */
+wbfs_enum wbfs_disc_read_buffer(WiiDisc* disc, void* data, uint64_t address, uint64_t size);
+
 /*************************************************************************************************************
  * Helper functions that don't have a return type, do something simple
  *************************************************************************************************************/
@@ -132,6 +144,8 @@ wbfs_enum wbfs_disc_parse_sector_table(WiiDisc* disc);
  * @param d The data to be reversed
  */
 void wbfs_helper_reverse_endian_32(uint32_t* d);
+
+void wbfs_helper_reverse_endian_16(uint16_t* d);
 
 /**
  * @brief Fetches the wbfs disc table size, added as users might not know how large the header should be

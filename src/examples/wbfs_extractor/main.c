@@ -58,7 +58,5 @@ int main(int argc, char* argv[])
 
         uint8_t title[16];
         wbfs_disc_read_buffer(&disc, &title, 0xF800000 + 0x1DC, 16);
-
-        printf("temp");
     }
 }

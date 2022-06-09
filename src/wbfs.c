@@ -141,3 +141,44 @@ wbfs_enum wbfs_disc_parse_sector_table(WiiDisc* disc)
 
     return e_wbfs_success;
 }
+
+wbfs_enum wbfs_disc_read_buffer(WiiDisc* disc, void* data, uint64_t address, uint64_t size)
+{
+    DISC_VALID(disc);
+    Wbfs* wbfs = disc->wbfs;
+
+    // We need to be careful to ensure our reads don't cross a boundry of the wbfs sector
+    uint64_t bytes_read = 0;
+    while (bytes_read < size) {
+        // Advance the address to account for all of the reads that have taken place so far
+        uint64_t local_address = address + bytes_read;
+
+        // The wbfs sectors are not in order. So we need to get which sector the address is in, and then
+        // lookup that index in the sector table. This will tell us where in the wbfs file this sector
+        // actually starts.
+        uint16_t sector_index = local_address / wbfs->wbfs_sector_size;
+        uint16_t lookup_index = disc->wbfs_sector_lookup[sector_index];
+
+        // We can't look in the first wbfs sector because that's where the wbfs header is stored
+        if (lookup_index == 0) return e_wbfs_invalid_disc_table;
+
+        // To navigate to the read from we take the remaing bytes from the address and add then to the new
+        // address since they are both local to the same sector count
+        uint64_t address_remainder = local_address % wbfs->wbfs_sector_size;
+        uint64_t read_address = lookup_index * wbfs->wbfs_sector_size + address_remainder;
+        fseek(wbfs->fp, read_address, SEEK_SET);
+
+        // Calculate how much space is left within this sector, and if that is enough space to fill the
+        // buffer. If there is not enough space to fill the buffer, we'll read the rest of this sector, and
+        // move over to the next one
+        uint64_t address_left = wbfs->wbfs_sector_size - address_remainder;
+        uint64_t req_read_size = ((size - bytes_read) <= address_left) ? size - bytes_read : address_left;
+
+        uint64_t read_size = fread((uint8_t*)(data) + bytes_read, sizeof(uint8_t), req_read_size, wbfs->fp);
+        if (read_size != req_read_size) return e_wbfs_failed_file_read;
+        bytes_read += read_size;
+    }
+
+    // Read al of the requested bytes without encountering an error.
+    return e_wbfs_success;
+}
