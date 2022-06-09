@@ -11,5 +11,5 @@ add_library(wbfs_utils
 	wbfs.c
 	wbfs_helper.c
 )
-
+set_property(TARGET wbfs_utils PROPERTY C_STANDARD 90)
 add_subdirectory(examples)
