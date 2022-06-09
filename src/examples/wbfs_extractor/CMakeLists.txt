@@ -9,4 +9,6 @@ add_executable(wbfs_extractor
 	${CMAKE_CURRENT_LIST_DIR}/main.c)
 
 target_link_libraries(wbfs_extractor PRIVATE wbfs_utils)
+set_property(TARGET wbfs_extractor PROPERTY C_STANDARD 11)
 set_property(DIRECTORY ${WBFS_UTILS_ROOT} PROPERTY VS_STARTUP_PROJECT wbfs_extractor)
+

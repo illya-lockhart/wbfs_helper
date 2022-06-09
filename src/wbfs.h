@@ -44,10 +44,11 @@ typedef struct Wbfs {
     WbfsFileHeader* file_header;  // Interpret the bytes of Wbfs header
 
     // Variables extracted from the binary file header
-    uint64_t wbfs_file_size;    // How large the WBFS file is in bytes
-    uint64_t wbfs_sector_size;  // How large the WBFS sectors are
-    uint64_t hd_sector_size;    // How large the host harddrive sectors are
-    uint8_t wii_disc_count;     // How many Wii disks are in the file
+    uint64_t wbfs_file_size;         // How large the WBFS file is in bytes
+    uint64_t wbfs_sector_size;       // How large the WBFS sectors are
+    uint64_t hd_sector_size;         // How large the host hard drive sectors are
+    uint8_t wii_disc_count;          // How many Wii disks are in the file
+    uint32_t wbfs_sectors_per_disc;  // How many wbfs sectors a Wii disc takes up
 
     // Repeate the WBFS magic at the end of the struct, this is how we'll ensure the struct we've recieved is
     // propperly allocated
@@ -60,6 +61,10 @@ typedef struct Wbfs {
  * reference to the Wbfs. There are other reasons to do this, for example the wbfs address lookup changes
  * based on the current disc being searched
  */
+typedef struct WiiDisc {
+    Wbfs* wbfs;                    // Pointer to the parent wbfs container
+    uint16_t* wbfs_sector_lookup;  // Wbfs sectors aren't guarenteed to be in the correct order
+} WiiDisc;
 
 /*************************************************************************************************************
  * Enums for return codes
@@ -115,6 +120,8 @@ void wbfs_helper_reverse_endian_32(uint32_t* d);
  * @param wbfs Valid Wbfs handle
  */
 size_t wbfs_helper_disc_table_size(Wbfs* wbfs);
+
+size_t wbfs_sector_table_size(Wbfs* wbfs);
 
 const char* wbfs_helper_enum_lookup(wbfs_enum e);
 #endif  // !__WFBS_H__

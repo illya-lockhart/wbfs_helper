@@ -23,12 +23,12 @@
  * it will also return out of the current function, this means we can return errors to the user while making
  * sure they don't euse the handle
  */
-#define WBFS_VALID(WBFS)                                                \
-    {                                                                   \
-        if (!(WBFS)) return e_wbfs_segfault;                            \
-        if (!(WBFS)->fp) return e_wbfs_segfault;                        \
-        if (!(WBFS)->file_header) return e_wbfs_segfault;               \
-        if (!(WBFS)->valid == WBFS_MAGIC) return e_wbfs_invalid_handle; \
+#define WBFS_VALID(WBFS)                                               \
+    {                                                                  \
+        if (!(WBFS)) return e_wbfs_segfault;                           \
+        if (!(WBFS)->fp) return e_wbfs_segfault;                       \
+        if (!(WBFS)->file_header) return e_wbfs_segfault;              \
+        if ((WBFS)->valid != WBFS_MAGIC) return e_wbfs_invalid_handle; \
     }
 
 #define WBFS_INVALIDATE(WBFS, ENUM)     \
@@ -67,6 +67,11 @@ wbfs_enum wbfs_file_header_parse(Wbfs* wbfs_handle, WbfsFileHeader* wbfs_fh, FIL
     wbfs_handle->hd_sector_size = 1ull << wbfs_fh->hd_sector_shift;
     wbfs_handle->wbfs_sector_size = 1ull << wbfs_fh->wbfs_sector_shift;
     wbfs_handle->wbfs_file_size = wbfs_fh->hd_sector_count * wbfs_handle->hd_sector_size;
+
+    // Calculate the number of wbfs sectors required to fit in a 2 sided wii disk
+    uint64_t wii_disc_byte_count = WII_DISC_2_SECTOR_COUNT * WII_DISC_SECTOR_SIZE;
+    wbfs_handle->wbfs_sectors_per_disc =
+      (wii_disc_byte_count + wbfs_handle->wbfs_sector_size - 1) / wbfs_handle->wbfs_sector_size;
 
     // Got to the end succssfully, mark the wbfs as sucessful
     wbfs_handle->valid = WBFS_MAGIC;

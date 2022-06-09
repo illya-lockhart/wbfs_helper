@@ -13,6 +13,12 @@ size_t wbfs_helper_disc_table_size(Wbfs* wbfs)
     return wbfs->hd_sector_size - 12;
 }
 
+size_t wbfs_sector_table_size(Wbfs* wbfs)
+{
+    // A block table uses 16 bits per sector to store each sectors location
+    return wbfs->wbfs_sectors_per_disc * sizeof(uint16_t);
+}
+
 const char* wbfs_helper_enum_lookup(wbfs_enum e)
 {
     switch (e) {
