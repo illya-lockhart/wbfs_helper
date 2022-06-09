@@ -1,0 +1,10 @@
+# Format Style Options - Created with Clang Power Tools
+---
+BasedOnStyle: Google
+BreakBeforeBraces: Linux
+ColumnLimit: 110
+ContinuationIndentWidth: 2
+IncludeBlocks: Preserve
+IndentWidth: 4
+ReflowComments: true
+...
