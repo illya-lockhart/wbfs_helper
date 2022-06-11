@@ -64,7 +64,7 @@ typedef struct Wbfs {
 typedef struct WiiDisc {
     Wbfs* wbfs;                    // Pointer to the parent wbfs container
     uint16_t* wbfs_sector_lookup;  // Wbfs sectors aren't guarenteed to be in the correct order
-    uint64_t wbfs_offset;          // The offset into the wbfs file that this
+    uint64_t wbfs_offset;          // The offset into the wbfs file that this disc starts at
 } WiiDisc;
 
 /**
@@ -76,6 +76,15 @@ typedef struct WiiDiscPartitionInfoEntry {
     uint32_t partition_count;
     uint32_t offset;
 } WiiDiscPartitionInfoEntry;
+
+/**
+ * The Wii partition table tells us where the partition data starts and also what type of partition they are.
+ * These entries are found by parsing the disc partition infos
+ */
+typedef struct WiiDiscPartitionTableEntry {
+    uint32_t offset;
+    uint32_t type;
+} WiiDiscPartitionTableEntry;
 
 /*************************************************************************************************************
  * Enums for return codes
@@ -143,6 +152,24 @@ wbfs_enum wbfs_disc_parse_sector_table(WiiDisc* disc);
  * @param size The amount of bytes to read from the offset
  */
 wbfs_enum wbfs_disc_read_buffer(WiiDisc* disc, void* data, uint64_t address, uint64_t size);
+
+/**
+ * @brief Locates the partition information which tells us where the partition tables located
+ * @returns error code, 0 on success
+ * @param disc Pointer to the wii disc
+ * @param info buffer containing the information to be read
+ */
+wbfs_enum wbfs_disc_parse_partition_info(WiiDisc* disc, WiiDiscPartitionInfoEntry info[4]);
+
+/**
+ * @brief Parses a singular partition table entry with the location from the partition entry info. The user
+ * needs to parse the address for this item, as it is not automatically known
+ * @returns error code, 0 on success
+ * @param disc pointer to the wii disc to parse
+ * @param table buffer to read the table data into
+ * @param address Wii disc local address where the partition table entry can be found
+ */
+wbfs_enum wbfs_disc_parse_partition_table(WiiDisc* disc, WiiDiscPartitionTableEntry* table, uint64_t address);
 
 /*************************************************************************************************************
  * Helper functions that don't have a return type, do something simple

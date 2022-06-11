@@ -56,7 +56,21 @@ int main(int argc, char* argv[])
         }
         wbfs_disc_parse_sector_table(&disc);
 
-        uint8_t title[16];
-        wbfs_disc_read_buffer(&disc, &title, 0xF800000 + 0x1DC, 16);
+        // Once we have the sector table parsed we can now read any part of the disc
+        // Read the partition information, which tells us where the partition tables are located
+        WiiDiscPartitionInfoEntry partition_info[4];
+        wbfs_disc_parse_partition_info(&disc, partition_info);
+        printf(" * Found %d partitions\n", partition_info[0].partition_count);
+
+        for (uint32_t j = 0; j < partition_info[0].partition_count; j++) {
+            WiiDiscPartitionTableEntry partition_table_entry;
+            wbfs_disc_parse_partition_table(&disc, &partition_table_entry, partition_info[i].offset);
+            printf(" * partition %d starts at 0x%08x\n", j, partition_table_entry.offset);
+
+            uint8_t encrypted_part_key[16];
+            uint8_t init_vector[16];
+            wbfs_disc_read_buffer(&disc, encrypted_part_key, partition_table_entry.offset + 0x1bf, 16);
+            wbfs_disc_read_buffer(&disc, init_vector, partition_table_entry.offset + 0x1dc, 16);
+        }
     }
 }

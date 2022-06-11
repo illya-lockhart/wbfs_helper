@@ -137,11 +137,11 @@ uint64_t wbfs_sizeInBytes = header.sectorCount * hd_sectorSize;
 uint32_t wbfs_sectorCount = wbfs_sizeInBytes / wbfs_sectorSize;
 ```
 
-## Wii Disc
+## Wii Disc Header
 
 The WBFS format is specifically designed to store Wii Discs, one per section. The number of different discs that WBFS can store is usually attributed to be [500](https://gbatemp.net/threads/wbfs-format-1tb-wd-only-gets-500-games-limit.220966/). However this is actually based on how the WBFS was partitioned.
 
-### Disc Table 
+### Wii Disc Table 
 
 In fact, the WBFS header takes up one sector on the hosting hard drive. The header explained above is 12 bytes large. The rest of the header is then used to represent the disc table, at one byte per entry.  
 
@@ -207,7 +207,7 @@ The disc information is made up of 4 different parts, starting from here the add
 
 I'll get to each of these sections as they come up, as it's not immediately clear how large they are. [Dolphin's source code](https://github.com/dolphin-emu/dolphin/blob/ac267a29405ae768037a8774b84b805a4180d1af/Source/Core/DiscIO/WbfsBlob.cpp#L23) seems to suggest that this disc info is 256 bytes, while [Wii brew](https://wiibrew.org/wiki/Wii_disc) suggests just the header alone is 1024 bytes. This is a mystery that will be solved later on.
 
-### Wii Disc Header
+### Wii Disc Header Contents
 
 For now let's start by reading in the next hard drive sector after the WBFS header. I know that the sector size on this WBFS partition is 512.
 
@@ -246,7 +246,7 @@ And with the majority of the next header being empty aside from some key points,
 | 0x60    | Disable Hash Verification | 0                            | Disable hash verification when set to non zero, on retail consoles this disabled reading the disc |
 | 0x61    | Disable Disc Encryption   | 0                            | Disable disc encryption when set to non zero, so once again that causes the disc read to fail on retail devices. |
 
-### Wait Something's Wrong
+## Wait Something's Wrong
 
 So looking at this we have a lot of eyebrows raised. After this hard drive sector, there is a large section of bytes all set to 0. The other big red flag is the extra data which is not listed in the Wiki.
 
@@ -297,13 +297,13 @@ hexdump -C -s0x2020 -n0x10 "./Wii Sports(EU).wbfs"
 
 And this is exactly the expected result! However we must be careful when crossing the boundary over to the next WBFS sector, as they are not in order. So we might be required to access the file multiple times in different locations to read one buffer if it crosses a sector boundary. And now lets continue with reading the rest of the Wii disc.
 
-
-
-### Wii Disc Partition Information
+## Wii Disc Partitions
 
 Wii Discs can contain multiple partitions, for example a lot of games have an update partition to update the console's operating system; this way the OS can be updated for a new game without an internet connection. This means we'll have to go another layer deeper into the partitions.
 
-Thankfully Wii sports came out at the same time as the Wii, so we don't need to worry about that update partition. Let's have a go at reading the partition information, there are 4 entries in the partition information in the following form  
+### Wii Disc Partition information 
+
+Thankfully Wii sports came out at the same time as the Wii, so we don't need to worry about that update partition. Contained in the Wii disc header we have the partition information table, each element in the table will tell us the location of one of the partition tables.  
 
 | Addresses         | Name                                                         |
 | ----------------- | ------------------------------------------------------------ |
@@ -328,7 +328,9 @@ wbfs_helper_reverse_endian_32(&info_entry.partitionCount);
 info_entry.offset = info_entry.offset << 2;
 ```
 
-And after running this code we get the expected result of there being only 1 partition, and the partition table is located at address `0x40020` in the Wii Disc. Which in this case is immediately after the   partition information section. 
+And after running this code we get the expected result of there being only 1 partition, and the partition table is located at address `0x40020` in the Wii Disc. Which in this case is immediately after the partition information section.
+
+###  Wii Disc Partition Table
 
 Now we can read the first entry in the actual partition table, This uses a similar pattern as the above code, but the structure definition is different. This is because the partition table entry needs to specify which type of partition it is 
 
@@ -339,9 +341,8 @@ typedef struct WiiDiscPartitionTableEntry {
 } WiiDiscPartitionTableEntry;
 WiiDiscPartitionTableEntry partition_table_entry;
 
-fseek(fp, wbfs_sectorSize + info_entry.offset, SEEK_SET);
-fread(&partition_table_entry, 
-	sizeof(partition_table_entry), 1, fp);
+wbfs_disc_read_buffer(&disc, &partition_table_entry, 
+    0x40000, sizeof(WiiDiscPartitionTableEntry));
    
 wbfs_helper_reverse_endian_32(&partition_table_entry.type);
 wbfs_helper_reverse_endian_32(&partition_table_entry.offset);
@@ -350,11 +351,11 @@ partition_table_entry.offset =
 	partition_table_entry.offset << 2;
 ```
 
-Finally after reading this we know that the first (and only partition) is of type 0 (meaning it contains game data) and that it starts at address `0xF800000`. Next we're going to cover actually reading that partition!
+Finally after reading this we know that the first (and only partition) is of type 0 (meaning it contains game data) and that it starts at address `0xF800000`. Next we're going to cover actually reading that partition! This is a perfect example of how wbfs sectors are out of order, as 0xF800000 is mapped to the first wbfs sector instead, which is much earlier in the file than would be expected.
 
-## Reading The Partition
+## Partition Header
 
-After all this work, we've only found the start of the partition data, and we're going to do a bit more work to uncover the files contained in the partition. For example, the data in the partition is going to be encrypted and we're going to have to figure out how to decrypt it.
+After all this work, we've only found the start of the partition data, and we're going to do a bit more work to uncover the files contained in the partition. 
 
 A Partition starts with ticket, a certificate chain and some meta data. The certificate chain is used to sign the save game data or the game files itself. Thankfully we won't need to look at that until we pack the files back up.
 
@@ -371,13 +372,22 @@ A Partition starts with ticket, a certificate chain and some meta data. The cert
 | 0x2C0 - ????? | Meta Data                                          |
 | ????? - ????? | Partition Data                                     |
 
-Obviously the end goal is going to be the partition data, and as a result of this, we're not going to be interested in all of this. 
+### Finding The Decryption Key
 
-### Decryption Key
+As we're working with Nintendo, we're going to need to decrypt the data, as a result we need the decryption key for this partition. The key is stored inside the partition ticket, however that key itself is also encrypted.
 
-As we're working with Nintendo, we're going to need to decrypt the data, as a result we need the decryption key for this game. The key is stored inside the partition ticket, however that key itself is also encrypted.
+The partition key is encrypted with a common key known to all Wiis. This common key was extracted from Wii consoles using a pair of tweezers, the story of how this was done can be found [here](https://hackmii.com/2008/04/keys-keys-keys/). The value of this key is `ebe42a225e8593e448d9c5457381aaf7`.
 
-The partition key is encrypted with a pair of common keys, all Wiis know one part of this key, and it is referred to as the common key. This common key was extracted from Wii consoles using a pair of tweezers, and the key itself can be found [here](https://hackmii.com/2008/04/keys-keys-keys/).  
+The Partition ticket is pretty large, but we're only looking for 2 variables at the moment. Both of them are 16 bytes long. The encrypted partition key is located at offset `0x1BF` from the ticket start, and the Initialization vector at `0x1DC`. 
 
-The Partition ticket is pretty large, but we're only looking for 2 variables. The 16 byte long encrypted partition key at `0x1BF`, and the 16 byte long Initialization vector at `0x1DC`.
+```c
+uint8_t encrypted_part_key[16];
+uint8_t init_vector[16];
+wbfs_disc_read_buffer(&disc, encrypted_part_key, 
+                      partition_table_entry.offset + 0x1bf, 16);
+wbfs_disc_read_buffer(&disc, init_vector, 
+                      partition_table_entry.offset + 0x1dc, 16);
+```
+
+A nice way we can check that we read the data correctly is the constraints applied to the initialisation vector. The last 8 bytes should be all 0 and it should start with `0x0001`. So in our case the IV (initialisation vector) is `0x00010000525350500000000000000000` which matches the constraints! It is also basically the string "RSPP" with padding, which I'm gonna guess is "Revolution sports pack partition"
 

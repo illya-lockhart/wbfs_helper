@@ -182,3 +182,32 @@ wbfs_enum wbfs_disc_read_buffer(WiiDisc* disc, void* data, uint64_t address, uin
     // Read al of the requested bytes without encountering an error.
     return e_wbfs_success;
 }
+
+wbfs_enum wbfs_disc_parse_partition_info(WiiDisc* disc, WiiDiscPartitionInfoEntry info[4])
+{
+    // The partition info starts at offset 0x4000 into the disc, so we can use the buffer reader
+    wbfs_enum err = wbfs_disc_read_buffer(disc, info, 0x40000, 4 * sizeof(WiiDiscPartitionInfoEntry));
+
+    for (uint32_t i = 0; i < 4; i++) {
+        // reverse all the endianness
+        wbfs_helper_reverse_endian_32(&info[i].offset);
+        wbfs_helper_reverse_endian_32(&info[i].partition_count);
+
+        // shift the partition offset
+        info[i].offset = info[i].offset << 2;
+    }
+
+    return err;
+}
+
+wbfs_enum wbfs_disc_parse_partition_table(WiiDisc* disc, WiiDiscPartitionTableEntry* table, uint64_t address)
+{
+    wbfs_enum err = wbfs_disc_read_buffer(disc, table, address, sizeof(WiiDiscPartitionTableEntry));
+
+    // reverse endianness and shift 
+    wbfs_helper_reverse_endian_32(&table->type);
+    wbfs_helper_reverse_endian_32(&table->offset);
+    table->offset = table->offset << 2;
+
+    return err;
+}
