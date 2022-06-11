@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include "aes.h"
 #include "wbfs.h"
 
 // Error loggers based on how many arguments get parsed to the format string
@@ -9,6 +10,11 @@
 #define ERROR_EXIT_1(MSG, FORMAT)          \
     fprintf(stderr, MSG "\n%s\n", FORMAT); \
     return -1;
+
+// We use two different aes encryption decryption contexts at once. One to decrypt the partition key, and
+// another to use that decrypted key to decrypt the contents of that partition
+static aes_working_buffer aes_common;
+static aes_working_buffer aes_part;
 
 int main(int argc, char* argv[])
 {
@@ -22,6 +28,11 @@ int main(int argc, char* argv[])
     if (!fp) {
         ERROR_EXIT_1("Could not open file", argv[1]);
     }
+
+    // Set up the aes decryption context to use the common key
+    memcpy(aes_common.encryption_key, k_wii_aes_common_key, sizeof(k_wii_aes_common_key));
+    aes_common.encryption_key_size = sizeof(k_wii_aes_common_key);
+    aes_init_round_keys(&aes_common);
 
     // Make space for the handle representing the WBFS and the file header and then read in the raw bytes
     // representing the header

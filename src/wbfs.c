@@ -14,6 +14,9 @@
 #define WII_DISC_1_SECTOR_COUNT (143432ull)
 #define WII_DISC_2_SECTOR_COUNT (260620ull)
 
+const uint8_t k_wii_aes_common_key[16] = {0xeb, 0xe4, 0x2a, 0x22, 0x5e, 0x85, 0x93, 0xe4,
+                                          0x48, 0xd9, 0xc5, 0x45, 0x73, 0x81, 0xaa, 0xf7};
+
 /*
  * We can mark a WBFS file as valid by putting a magic number at the end of the struct, then if the pointer we
  * recieve is not null but not propperly allocated for we can exit out early and tell the user to correctly
@@ -204,7 +207,7 @@ wbfs_enum wbfs_disc_parse_partition_table(WiiDisc* disc, WiiDiscPartitionTableEn
 {
     wbfs_enum err = wbfs_disc_read_buffer(disc, table, address, sizeof(WiiDiscPartitionTableEntry));
 
-    // reverse endianness and shift 
+    // reverse endianness and shift
     wbfs_helper_reverse_endian_32(&table->type);
     wbfs_helper_reverse_endian_32(&table->offset);
     table->offset = table->offset << 2;
