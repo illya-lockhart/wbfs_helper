@@ -1,5 +1,13 @@
 #include "aes.h"
 
+void word_shift_left(uint32_t* i)
+{
+    // The left shift is done in bytes, it switches the most significant byte back round to the beginning and
+    // then every byte gets shifted up a place. This is performed on a 32bit int as that's the size of a word
+    *i = ((0xFF000000 & *i) >> 24) | ((0x00FF0000 & *i) << 8) | ((0x0000FF00 & *i) << 8) |
+         ((0x000000FF & *i) << 8);
+}
+
 aes_enum aes_init_round_keys(aes_working_buffer* buff)
 {
     // First validate that the key is the right length, it can only be 128, 192, 256 bits large, but remember
