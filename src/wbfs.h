@@ -3,7 +3,7 @@
  * I'm trying to further understand the wbfs file system, as I want to fully understand every step of the
  * process. I also looked at the dolphin emulator code as a strong basis as well.
  *
- * Author : Illy L
+ * Author : Illya L
  * License : None
  *************************************************************************************************************/
 #ifndef __WFBS_H__
