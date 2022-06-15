@@ -68,7 +68,8 @@ aes_enum aes_init_round_keys(aes_working_buffer* buff)
     if (buff->encryption_key_size != 128 / 8)
         return e_aes_incorrect_key_size;  // TODO figure out other key sizes
 
-    // How many words make up the base encryption key. From this encryption key we need to generate 4N words
+    // How many words make up the base encryption key. From this encryption key we need to generate extra
+    // words. 4 Words for each round
     const uint8_t N = buff->encryption_key_size / sizeof(uint32_t);
 
     // We know that the buffers holding the round key are allocated next to each other, this is probably just
@@ -76,23 +77,23 @@ aes_enum aes_init_round_keys(aes_working_buffer* buff)
     // the elements without corrupting the stack
     uint8_t* w0 = buff->round_keys->x;
 
-    // The first N words are the base encryption key
+    // The first N words are the base encryption key, we know there will be at least
     memcpy(w0, buff->encryption_key, buff->encryption_key_size);
 
-    // The next 3 N words follow a set pattern
-    for (uint32_t i = N; i < 4 * N; i++) {
+    // The rest of the words up to 4 * round count will be generated based on the following pattern
+    for (uint32_t i = N; i < 4 * buff->round_count; i++) {
         // We almost always look back so get the ith word
-        uint8_t* wI = w0 + i;
+        uint8_t* wI = w0 + i * sizeof(uint32_t);
 
         if (i % N == 0) {
             // w_i = w_{i-N} XOR subWord(RotWord(w_{i-1})) XOR RoundConstant
             // However the round constant only has content in the first byte the rest are all 0s
             // So we just need to xor the first byte at w_i
             uint8_t sub[4];
-            memcpy(sub, wI - 1, 4 * sizeof(uint8_t));
+            memcpy(sub, wI - sizeof(uint32_t), 4 * sizeof(uint8_t));
             word_shift_left(sub);
             sub_word(sub);
-            xor_word(wI, wI - N, sub);
+            xor_word(wI, wI - N * sizeof(uint32_t), sub);
 
             // We know i / N nicely because of the above if statement and will be greater than 1
             uint8_t round_constant = k_round_constants[i / N];
@@ -101,12 +102,12 @@ aes_enum aes_init_round_keys(aes_working_buffer* buff)
         } else if (N > 6 && (i % N == 4)) {
             // w_i - W_{i-N} XOR SubWord(W_{i-1})
             uint8_t sub[4];
-            memcpy(sub, wI - 1, 4 * sizeof(uint8_t));
+            memcpy(sub, wI - sizeof(uint32_t), 4 * sizeof(uint8_t));
             sub_word(sub);
-            xor_word(wI, wI - N, sub);
+            xor_word(wI, wI - N * sizeof(uint32_t), sub);
         } else {
             // w_i = W_{i-N} XOR W_{i-1}
-            xor_word(wI, wI - N, wI - 1);
+            xor_word(wI, wI - N * sizeof(uint32_t), wI - 1 * sizeof(uint32_t));
         }
     }
 

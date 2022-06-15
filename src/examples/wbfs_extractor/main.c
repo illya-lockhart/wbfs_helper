@@ -30,7 +30,8 @@ int main(int argc, char* argv[])
     }
 
     // Set up the aes decryption context to use the common key
-    memcpy(aes_common.encryption_key, k_wii_aes_common_key, sizeof(k_wii_aes_common_key));
+    uint8_t key[] = {00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00};
+    memcpy(aes_common.encryption_key, key, sizeof(k_wii_aes_common_key));
     aes_common.encryption_key_size = sizeof(k_wii_aes_common_key);
     aes_init_round_keys(&aes_common);
 
