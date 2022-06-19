@@ -1,0 +1,3 @@
+[submodule "external/aes_light"]
+	path = external/aes_light
+	url = git@github.com:illya-lockhart/aes_light.git
